@@ -3,175 +3,125 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Live App</title>
-    <!-- Firebase -->
+    <title>Live Web App</title>
+    <!-- Firebase SDK (Lightweight & Fast) -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     
     <style>
-        html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #ffffff; font-family: sans-serif; }
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #ffffff;
+        }
         
-        /* Iframe for Website */
-        iframe { width: 100%; height: 100%; border: none; display: block; background: #fff; }
-
-        /* Loader Overlay (কোড আপডেটের সময় দেখাবে, কিন্তু সাদা হবে না) */
-        #loaderOverlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(15, 23, 42, 0.5); /* স্বচ্ছ কালো ব্যাকগ্রাউন্ড */
-            backdrop-filter: blur(2px);
-            display: none; justify-content: center; align-items: center; z-index: 99990;
+        /* সম্পূর্ণ স্ক্রিন জুড়ে থাকা খালি বাক্স */
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: block;
         }
+
+        /* 🎨 ২ সেকেন্ডের সাদা স্ক্রিন দূর করার জন্য স্মার্ট লোডার */
+        #appLoader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #0f172a; /* ব্যাকগ্রাউন্ড কালার আপনার পছন্দমতো দিতে পারেন */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 99999;
+            transition: opacity 0.4s ease, visibility 0.4s ease;
+        }
+
         .spinner {
-            width: 50px; height: 50px; border: 5px solid rgba(255, 255, 255, 0.3);
-            border-left-color: #38bdf8; border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin { to { transform: rotate(360deg); } }
-
-        /* White Kill Screen (সম্পূর্ণ সাদা স্ক্রিন) */
-        #whiteScreen {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: #ffffff; z-index: 99998; cursor: default;
+            width: 45px;
+            height: 45px;
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-left-color: #38bdf8;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
         }
 
-        /* Password Modal */
-        #passwordModal {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.8); z-index: 99999;
-            display: none; justify-content: center; align-items: center;
-        }
-        .modal-box {
-            background: #1e293b; padding: 25px; border-radius: 12px; width: 90%; max-width: 320px;
-            text-align: center; color: white; box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-        }
-        .modal-box input {
-            width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #334155;
-            background: #0f172a; color: white; font-size: 16px; outline: none; text-align: center; margin-bottom: 15px;
-        }
-        .modal-box button {
-            width: 100%; padding: 12px; background: #0ea5e9; color: white;
-            border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer;
+        @keyframes spin {
+            to { transform: rotate(360deg); }
         }
     </style>
 </head>
 <body>
 
-    <!-- 1. Iframe Code Area -->
-    <iframe id="liveFrame" sandbox="allow-scripts allow-forms allow-same-origin allow-popups"></iframe>
-
-    <!-- 2. Transparent Loader (Seamless update) -->
-    <div id="loaderOverlay"><div class="spinner"></div></div>
-
-    <!-- 3. Blank White Screen -->
-    <div id="whiteScreen"></div>
-
-    <!-- 4. Secret Password Modal -->
-    <div id="passwordModal">
-        <div class="modal-box">
-            <h3 style="margin-top: 0; color: #38bdf8;">কানেকশন সেটআপ</h3>
-            <input type="password" id="pwdInput" placeholder="পাসওয়ার্ড দিন...">
-            <button onclick="verifyAndConnect()">কানেক্ট করুন</button>
-        </div>
+    <!-- 🌟 সাদা স্ক্রিন বন্ধ করার জন্য লোডার অ্যানিমেশন -->
+    <div id="appLoader">
+        <div class="spinner"></div>
     </div>
 
+    <!-- 🕵️ চোরের দেখা একমাত্র খালি বাক্স -->
+    <iframe id="liveFrame"></iframe>
+
 <script>
-    // Firebase Config
+    const liveFrame = document.getElementById("liveFrame");
+    const loader = document.getElementById("appLoader");
+
+    // ⚡ ১. সুপার স্পিড ক্যাশ: মেমোরিতে আগে থেকে সেভ থাকা কোড থাকলে ০ সেকেন্ডে রেন্ডার হবে
+    const cachedCode = localStorage.getItem("cached_website_code");
+    if (cachedCode) {
+        renderCode(cachedCode);
+        hideLoader(); // আগের কোড থাকলে সাথে সাথে লোডার গায়েব হয়ে যাবে
+    }
+
+    // ⚠️ আপনার Firebase কনফিগারেশন দিন
     const firebaseConfig = {
-      apiKey: "AIzaSyBwdAEMuKsGzz7oWLSkO2WDl83yzdXdrig",
-      authDomain: "website-edit-881e5.firebaseapp.com",
-      databaseURL: "https://website-edit-881e5-default-rtdb.firebaseio.com",
-      projectId: "website-edit-881e5",
-      storageBucket: "website-edit-881e5.firebasestorage.app",
-      messagingSenderId: "420995191968",
-      appId: "1:420995191968:web:5a566742f01405811a25c5"
-    };
+  apiKey: "AIzaSyBwdAEMuKsGzz7oWLSkO2WDl83yzdXdrig",
+  authDomain: "website-edit-881e5.firebaseapp.com",
+  databaseURL: "https://website-edit-881e5-default-rtdb.firebaseio.com",
+  projectId: "website-edit-881e5",
+  storageBucket: "website-edit-881e5.firebasestorage.app",
+  messagingSenderId: "420995191968",
+  appId: "1:420995191968:web:5a566742f01405811a25c5"
+};
 
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
-    
-    // UI Elements
-    const liveFrame = document.getElementById("liveFrame");
-    const loader = document.getElementById("loaderOverlay");
-    const whiteScreen = document.getElementById("whiteScreen");
-    const passwordModal = document.getElementById("passwordModal");
 
-    let currentActiveRef = null;
-
-    // Check Local Storage
-    const savedPassword = localStorage.getItem("connected_project");
-
-    if (savedPassword) {
-        // App is connected
-        whiteScreen.style.display = "none";
-        startListening(savedPassword);
-    } else {
-        // 3-Click Secret Logic
-        let clickCount = 0;
-        let clickTimer;
-
-        whiteScreen.addEventListener('click', () => {
-            clickCount++;
-            clearTimeout(clickTimer);
-            
-            if (clickCount >= 3) {  // ৩ বার ক্লিক করলে পাসওয়ার্ড বক্স আসবে
-                passwordModal.style.display = "flex";
-                clickCount = 0;
-            } else {
-                clickTimer = setTimeout(() => { clickCount = 0; }, 800);
+    // ⚡ ২. ব্যাকগ্রাউন্ডে ফায়ারবেস থেকে নতুন আপডেট চেক করা
+    database.ref('cloudWebsiteCode').on('value', (snapshot) => {
+        const newCode = snapshot.val();
+        if (newCode) {
+            // যদি এডমিন প্যানেল থেকে নতুন কোড দেওয়া হয় বা ক্যাশে যা ছিল তার সাথে না মেলে
+            if (newCode !== cachedCode) {
+                localStorage.setItem("cached_website_code", newCode);
+                renderCode(newCode);
             }
-        });
+            hideLoader(); // লোডার সম্পূর্ণ বন্ধ করা
+        }
+    });
+
+    // আইফ্রেমের ভেতরে কোড ডিসপ্লে করার ফাংশন
+    function renderCode(code) {
+        const frameDoc = liveFrame.contentDocument || liveFrame.contentWindow.document;
+        frameDoc.open();
+        frameDoc.write(code);
+        frameDoc.close();
     }
 
-    // Verify
-    function verifyAndConnect() {
-        const pwd = document.getElementById("pwdInput").value.trim();
-        if(!pwd) return;
-
-        database.ref('cloud_apps/' + pwd).once('value', (snapshot) => {
-            if (snapshot.exists()) {
-                localStorage.setItem("connected_project", pwd);
-                passwordModal.style.display = "none";
-                whiteScreen.style.display = "none";
-                startListening(pwd);
-            } else {
-                alert("ভুল পাসওয়ার্ড!");
-            }
-        });
-    }
-
-    // Listen to Firebase
-    function startListening(pwd) {
-        loader.style.display = "flex";
-        currentActiveRef = database.ref('cloud_apps/' + pwd);
-        
-        currentActiveRef.on('value', (snapshot) => {
-            const data = snapshot.val();
-            
-            // Kill Switch Condition - এডমিন যদি অফ করে দেয়
-            if (!data || data.status === 'white') {
-                localStorage.removeItem("connected_project");
-                currentActiveRef.off(); // ডাটাবেজ শোনা বন্ধ
-                liveFrame.srcdoc = "";  // কোড মুছে ফেলা
-                whiteScreen.style.display = "block"; // সাদা স্ক্রিন নিয়ে আসা
-                loader.style.display = "none";
-                return;
-            }
-            
-            // Seamless Update - কোড আপডেট হলে 
-            if (data.status === 'active' && data.code) {
-                loader.style.display = "flex"; // স্পিনার দেখাবে
-                
-                // Iframe-এ নতুন কোড পুশ করা
-                const frameDoc = liveFrame.contentDocument || liveFrame.contentWindow.document;
-                frameDoc.open();
-                frameDoc.write(data.code);
-                frameDoc.close();
-                
-                // কোড লোড হওয়ার পর স্পিনার সরিয়ে ফেলা
-                setTimeout(() => { loader.style.display = "none"; }, 500);
-            }
-        });
+    // লোডার বন্ধ করার স্মুথ অ্যানিমেশন
+    function hideLoader() {
+        if (loader) {
+            loader.style.opacity = "0";
+            setTimeout(() => {
+                loader.style.visibility = "hidden";
+            }, 400);
+        }
     }
 </script>
+
 </body>
 </html>
